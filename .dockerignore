@@ -1,0 +1,23 @@
+# The build context is the repo root, because the Dockerfile copies the theme and the plugin out of
+# wp-content. Everything else here is either not needed by the image or actively unhelpful in it.
+#
+# uploads is the one that matters: it holds the site's media and Elementor's generated CSS, it is
+# gitignored, and copying it into the image would bake one machine's content into every deploy and
+# then be shadowed by the disk anyway.
+wp-content/uploads/
+
+# The probes, the agent bridge and the MCP adapter are development tooling. They run the site here;
+# they have no business on a public deployment.
+wp-content/plugins/bookify-booking/_probes/
+docs/
+node_modules/
+.git/
+.gitignore
+
+# Note: `deploy/` is NOT ignored. The entrypoint script the image runs lives in it, so excluding the
+# directory would fail the build at the COPY rather than silently ship an image that starts nothing.
+
+# Local state and secrets. `.env` holds the database password and the Resend key; it must never reach
+# an image layer, where it would be readable by anyone who can pull the image.
+.env
+*.log

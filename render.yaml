@@ -1,0 +1,96 @@
+# Bookify on Render — the FREE-tier blueprint.
+#
+# **This is for trying the deploy, not for running the business.** On Render's free plan a web service
+# has none of the three things this site needs, and all three fail *silently* rather than raising an
+# error, which is what makes them worth stating before you apply this:
+#
+#   1. **No persistent disk.** Free web services cannot attach one, and their filesystem is wiped on
+#      every redeploy, every restart, and every time the service spins down — which is after 15 minutes
+#      without traffic. The session photographs and Elementor's generated CSS live under
+#      wp-content/uploads, so the site will keep losing its own images. Render's own documentation says
+#      of free instances: "Do not use them for production applications."
+#
+#   2. **No cron job.** Free instances exist only for web services, Postgres, Key Value and static
+#      sites — "other service types don't support Free instances" — so there is no cron service to run
+#      wp-cron.php. WP-Cron then fires only when a page view happens to arrive, which on a spun-down
+#      service is never. **Reminders, reservation summaries and the expiry of unpaid bookings will not
+#      run**, and neither will the Supabase reconciliation. `DISABLE_WP_CRON` is therefore deliberately
+#      *not* set here: page views are the only thing left that can run them.
+#
+#   3. **No Shell, and no `render ssh` on free.** There is no way to get a database dump onto the
+#      instance, so this deploys a *fresh* WordPress: no pages, no Elementor layouts, none of the
+#      sessions, events or bookings. Recreating them is manual work — or a paid hour, since upgrading
+#      the plan temporarily is what unlocks a shell.
+#
+# It also needs a MySQL from somewhere, because WordPress requires one and Render has no managed MySQL
+# (Postgres and Key Value only). On free that means an external provider, and note Render's
+# "service-initiated traffic" rule: it may suspend a free service that talks to external databases and
+# APIs at "an uncommonly high volume". A booking site's volume is trivial, but it is a rule to know.
+#
+# **The Supabase mirror matters most on this plan.** With an ephemeral filesystem and no backups
+# anywhere, the typed copy in Supabase is the only durable record of the booking data that leaves the
+# free instance — see includes/supabase/.
+#
+# deploy/render/render.production.yaml is the blueprint for a live booking business: a disk, a cron job,
+# a MariaDB private service, and Shell access to import a database into.
+#
+# NOT TESTED AGAINST A LIVE RENDER ACCOUNT. The image has been built and booted locally; docs/DEPLOY-
+# RENDER.md states exactly what was and was not verified.
+
+services:
+
+  - type: web
+    name: bookify
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: frankfurt
+    plan: free
+
+    envVars:
+      # An external MySQL. Aiven, DigitalOcean, Railway and others offer one; put the host and port
+      # together here, as `host:port`. The Dockerfile's entrypoint appends `:3306` when no port is
+      # given, so a provider on a custom port just works as long as you include it.
+      - key: WORDPRESS_DB_HOST
+        sync: false
+      - key: WORDPRESS_DB_NAME
+        value: wordpress
+      - key: WORDPRESS_DB_USER
+        sync: false
+      - key: WORDPRESS_DB_PASSWORD
+        sync: false
+
+      - key: WORDPRESS_CONFIG_EXTRA
+        value: |
+          define( 'WP_HOME', getenv( 'RENDER_EXTERNAL_URL' ) );
+          define( 'WP_SITEURL', getenv( 'RENDER_EXTERNAL_URL' ) );
+          define( 'WP_ENVIRONMENT_TYPE', 'production' );
+          define( 'FS_METHOD', 'direct' );
+          define( 'WP_DEBUG_DISPLAY', false );
+          // DISABLE_WP_CRON is deliberately absent. There is no cron job on this plan, so leaving it
+          // out is what lets a page view run the scheduled work — badly, but better than never.
+
+      # The Supabase mirror. Both are prompted for on first deploy; leave them empty and the mirror
+      # stays switched off, which is still a working site. BOOKIFY_SUPABASE_KEY is a service_role
+      # credential — a full-database one — so it belongs in Render's environment and nowhere else.
+      - key: BOOKIFY_SUPABASE_URL
+        sync: false
+      - key: BOOKIFY_SUPABASE_KEY
+        sync: false
+
+      # A direct socket to Supabase's Postgres instead of its HTTPS API. Optional: leave these unset and
+      # the mirror uses the API, which needs no PHP extension and keeps no database credential in the
+      # application. If a URL is set it takes precedence and the API pair above goes unused.
+      #
+      # **Use the Session pooler string from the dashboard's Connect panel, not "Direct connection".**
+      # db.<ref>.supabase.co is IPv6-only — measured, it has an AAAA record and no A record — and a host
+      # with no IPv6 route cannot reach it. aws-0-<region>.pooler.supabase.com answers on IPv4.
+      #
+      # The URL goes here and the password goes below it, so the secret is not in this file. Percent-
+      # encode anything in the password that is not alphanumeric.
+      - key: BOOKIFY_SUPABASE_DB_URL
+        sync: false
+      - key: BOOKIFY_SUPABASE_DB_PASSWORD
+        sync: false
+      - key: BOOKIFY_SUPABASE_DB_SSLMODE
+        value: require

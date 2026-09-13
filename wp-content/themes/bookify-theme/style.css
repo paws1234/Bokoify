@@ -1,0 +1,1181 @@
+/*
+Theme Name:   Bookify
+Theme URI:    https://example.com
+Description:  Child theme of Hello Elementor for Bookify.
+Author:       Bookify
+Template:     hello-elementor
+Version:      0.6.1
+License:      GNU General Public License v3 or later
+License URI:  https://www.gnu.org/licenses/gpl-3.0.html
+Text Domain:  bookify-theme
+*/
+
+/*
+ * Presentation only. Anything the site must keep when the theme changes - post
+ * types, fields, shortcodes - belongs in the wp-agent-bridge plugin.
+ */
+
+/* ==========================================================================
+ * 1. Design tokens
+ *
+ * One place for the whole site's colour, type, space, radius, shadow and motion
+ * values. The plugin's components read these first (--bk-*), then the Elementor
+ * kit's own variables, then a literal fallback, so every component still stands
+ * on its own if this file is not loaded - the rule plan D8 set.
+ *
+ * Colours are literal here and derived with color-mix() where a shade is needed,
+ * so nothing depends on oklch() or light-dark() support.
+ * ========================================================================== */
+
+:root {
+	/* Brand. #14665B on white is 6.8:1; white on it is the same 6.8:1. Every button in
+	   the project is filled with --bk-accent and labelled with --bk-on-accent, which is
+	   the one pair that has to stay legible in both colour schemes. */
+	--bk-accent: #14665b;
+	--bk-accent-strong: #0e4a42;
+	--bk-accent-soft: #e3f0ed;
+	--bk-on-accent: #ffffff;
+
+	/* The two hero/CTA bands. Dark in *both* colour schemes, so the literal white
+	   copy Elementor stores on them stays legible whatever the visitor prefers. */
+	--bk-band: #14312c;
+	--bk-band-ink: #f6f3ee;
+
+	--bk-ink: #1f2a28;
+	--bk-body: #4a5654;
+	--bk-muted: #6e675c;
+	--bk-surface: #ffffff;
+	--bk-surface-warm: #faf7f2;
+	--bk-line: #e4ded4;
+	--bk-field-bg: #ffffff;
+
+	--bk-success: #2f6b46;
+	--bk-error: #b32d2e;
+
+	/* Derived, so a dark-mode swap of the four bases above carries them along. */
+	--bk-tint: color-mix(in srgb, var(--bk-ink) 5%, var(--bk-surface));
+	--bk-line-soft: color-mix(in srgb, var(--bk-line) 65%, var(--bk-surface));
+
+	/* Type. The stacks end in a generic family so a failed webfont still lands
+	   somewhere deliberate rather than on the browser's default serif. */
+	--bk-font-display: "Lora", ui-serif, Georgia, "Times New Roman", serif;
+	--bk-font-body: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+	/* A fluid scale: every step interpolates between a 390px and a 1440px viewport,
+	   so nothing jumps at a breakpoint and no heading is fixed at 40px. */
+	--bk-step--1: clamp(0.8125rem, 0.79rem + 0.11vw, 0.875rem);
+	--bk-step-0: clamp(1rem, 0.97rem + 0.15vw, 1.0625rem);
+	--bk-step-1: clamp(1.1875rem, 1.13rem + 0.29vw, 1.3125rem);
+	--bk-step-2: clamp(1.4375rem, 1.32rem + 0.57vw, 1.6875rem);
+	--bk-step-3: clamp(1.75rem, 1.53rem + 1.05vw, 2.1875rem);
+	--bk-step-4: clamp(2.125rem, 1.74rem + 1.83vw, 2.875rem);
+	--bk-step-5: clamp(2.5rem, 1.87rem + 3.02vw, 3.75rem);
+
+	--bk-space-3xs: 0.25rem;
+	--bk-space-2xs: 0.5rem;
+	--bk-space-xs: 0.75rem;
+	--bk-space-sm: 1rem;
+	--bk-space-md: 1.5rem;
+	--bk-space-lg: 2rem;
+	--bk-space-xl: 3rem;
+	--bk-space-2xl: clamp(2.5rem, 1.9rem + 2.5vw, 4rem);
+
+	--bk-radius-sm: 6px;
+	--bk-radius-md: 10px;
+	--bk-radius-lg: 18px;
+	--bk-radius-pill: 999px;
+
+	--bk-shadow-sm: 0 1px 2px color-mix(in srgb, var(--bk-ink) 7%, transparent),
+		0 1px 1px color-mix(in srgb, var(--bk-ink) 4%, transparent);
+	--bk-shadow-md: 0 4px 14px -4px color-mix(in srgb, var(--bk-ink) 16%, transparent),
+		0 2px 4px -2px color-mix(in srgb, var(--bk-ink) 8%, transparent);
+	--bk-shadow-lg: 0 20px 44px -16px color-mix(in srgb, var(--bk-ink) 24%, transparent),
+		0 4px 12px -6px color-mix(in srgb, var(--bk-ink) 10%, transparent);
+
+	--bk-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--bk-dur-fast: 120ms;
+	--bk-dur: 220ms;
+
+	--bk-measure: 65ch;
+	--bk-container: 75rem;
+
+	/*
+	 * The left and right edge every part of the footer shares. The footer is two containers in
+	 * the mark-up - Hello Elementor's <footer> and the plugin's business block, printed on
+	 * wp_footer - so they cannot inherit one alignment from a common parent; they agree on it
+	 * by resolving this same expression. 100% is the page width here, which is what makes it
+	 * equal to a max-width container plus its gutter.
+	 */
+	--bk-footer-gutter: max(var(--bk-space-md), calc((100% - var(--bk-container)) / 2 + var(--bk-space-md)));
+
+	color-scheme: light;
+}
+
+/*
+ * The Elementor kit's own variables, restated from the tokens above.
+ *
+ * Specificity is the point: the kit writes `.elementor-kit-4{--e-global-color-primary:#6EC1E4}`
+ * at (0,1,0) and this rule is (0,1,1), so the new palette wins wherever the kit's CSS is
+ * loaded from and whenever it is regenerated. No !important anywhere, so an editor can still
+ * override any individual widget - which is the whole reason the site is not being rebuilt.
+ */
+body.elementor-kit-4 {
+	--e-global-color-primary: var(--bk-accent);
+	--e-global-color-secondary: var(--bk-ink);
+	--e-global-color-text: var(--bk-body);
+	--e-global-color-accent: var(--bk-accent);
+
+	--e-global-typography-primary-font-family: "Lora";
+	--e-global-typography-primary-font-weight: 600;
+	--e-global-typography-secondary-font-family: "Lora";
+	--e-global-typography-secondary-font-weight: 400;
+	--e-global-typography-text-font-family: "Source Sans 3";
+	--e-global-typography-text-font-weight: 400;
+	--e-global-typography-accent-font-family: "Source Sans 3";
+	--e-global-typography-accent-font-weight: 600;
+}
+
+/* ==========================================================================
+ * 2. Base
+ * ========================================================================== */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+	scroll-behavior: smooth;
+}
+
+body {
+	margin: 0;
+	background-color: var(--bk-surface);
+	color: var(--bk-body);
+	font-family: var(--bk-font-body);
+	font-size: var(--bk-step-0);
+	line-height: 1.65;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+	background-color: color-mix(in srgb, var(--bk-accent) 22%, transparent);
+	color: var(--bk-ink);
+}
+
+:where(img, svg, video, canvas) {
+	max-width: 100%;
+	height: auto;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	margin-block: 0 0.4em;
+	color: var(--bk-ink);
+	font-family: var(--bk-font-display);
+	font-weight: 600;
+	font-optical-sizing: auto;
+	line-height: 1.15;
+	letter-spacing: -0.012em;
+	text-wrap: balance;
+}
+
+h1 { font-size: var(--bk-step-5); }
+h2 { font-size: var(--bk-step-4); }
+h3 { font-size: var(--bk-step-2); }
+h4 { font-size: var(--bk-step-1); }
+h5,
+h6 {
+	font-size: var(--bk-step-0);
+	letter-spacing: 0;
+}
+
+p,
+li {
+	text-wrap: pretty;
+}
+
+a {
+	color: var(--bk-accent-strong);
+	text-decoration-color: color-mix(in srgb, var(--bk-accent) 45%, transparent);
+	text-underline-offset: 0.18em;
+}
+
+a:hover {
+	color: var(--bk-ink);
+	text-decoration-color: currentColor;
+}
+
+/*
+ * Focus is never removed, only strengthened.
+ *
+ * The extra `body` is load-bearing: WordPress's block-library stylesheet ships its own
+ * `:focus-visible { outline: 2px solid #000 }` and prints it after this file, so a bare
+ * `:focus-visible` here loses on document order and Elementor's buttons would keep a black
+ * ring while the booking form's fields showed this one. (0,1,1) beats (0,1,0) whatever the
+ * order, which is what makes the two agree.
+ */
+body :focus-visible {
+	outline: 3px solid var(--bk-accent);
+	outline-offset: 2px;
+}
+
+/* ==========================================================================
+ * 3. Site chrome - header, navigation, footer
+ * ========================================================================== */
+
+.site-header {
+	position: sticky;
+	top: 0;
+	z-index: 50;
+	background-color: var(--bk-surface);
+	border-block-end: 1px solid var(--bk-line);
+}
+
+@supports (backdrop-filter: blur(1px)) {
+	.site-header {
+		background-color: color-mix(in srgb, var(--bk-surface) 86%, transparent);
+		border-block-end-color: var(--bk-line-soft);
+		backdrop-filter: blur(12px) saturate(140%);
+	}
+}
+
+.site-header .header-inner {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--bk-space-md);
+	max-width: var(--bk-container);
+	margin-inline: auto;
+	padding: var(--bk-space-xs) var(--bk-space-md);
+}
+
+.site-header .site-title {
+	margin: 0;
+	font-family: var(--bk-font-display);
+	font-size: var(--bk-step-2);
+	font-weight: 600;
+	letter-spacing: -0.02em;
+	line-height: 1;
+}
+
+.site-header .site-title a {
+	color: var(--bk-ink);
+	text-decoration: none;
+}
+
+.site-header .site-title a:hover {
+	color: var(--bk-accent);
+}
+
+.site-header .site-navigation .menu {
+	display: flex;
+	align-items: center;
+	gap: var(--bk-space-3xs);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.site-header .site-navigation .menu > li > a {
+	display: inline-block;
+	padding: var(--bk-space-2xs) var(--bk-space-xs);
+	border-radius: var(--bk-radius-sm);
+	color: var(--bk-ink);
+	font-size: var(--bk-step--1);
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	text-decoration: none;
+}
+
+.site-header .site-navigation .menu > li > a:hover,
+.site-header .site-navigation .menu > li > a:focus-visible {
+	background-color: var(--bk-tint);
+	color: var(--bk-accent-strong);
+}
+
+.site-header .site-navigation .menu > .current-menu-item > a {
+	color: var(--bk-accent-strong);
+}
+
+/* The dropdown menu the theme swaps in below 1024px. */
+.site-navigation-toggle-holder .site-navigation-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.75rem;
+	height: 2.75rem;
+	padding: 0;
+	border: 1px solid var(--bk-line);
+	border-radius: var(--bk-radius-sm);
+	background-color: var(--bk-surface);
+	color: var(--bk-ink);
+	cursor: pointer;
+}
+
+.site-navigation-toggle-holder .site-navigation-toggle:hover {
+	border-color: var(--bk-accent);
+	color: var(--bk-accent-strong);
+}
+
+.site-navigation-dropdown .menu {
+	margin: 0;
+	padding: var(--bk-space-2xs) 0;
+	list-style: none;
+}
+
+.site-navigation-dropdown .menu > li > a {
+	display: block;
+	padding: var(--bk-space-2xs) var(--bk-space-md);
+	color: var(--bk-ink);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.site-navigation-dropdown .menu > li > a:hover,
+.site-navigation-dropdown .menu > li > a:focus-visible {
+	background-color: var(--bk-tint);
+	color: var(--bk-accent-strong);
+}
+
+.site-footer {
+	margin-block-start: var(--bk-space-2xl);
+	border-block-start: 1px solid var(--bk-line);
+	background-color: var(--bk-surface-warm);
+}
+
+/*
+ * The footer is one warm band assembled from three containers the mark-up keeps apart: Hello
+ * Elementor's <footer>, the plugin's <address> printed on wp_footer, and the legal bar this theme
+ * prints last of all. They have no common parent to inherit a grid from, so they agree by
+ * resolving the same --bk-footer-gutter and the same container width instead, and each holds one
+ * row of the footer.
+ */
+.site-footer .footer-inner {
+	display: block;
+	max-width: var(--bk-container);
+	margin-inline: auto;
+	padding: var(--bk-space-lg) var(--bk-space-md) 0;
+}
+
+/*
+ * Two things in the parent's footer are hidden here, and neither is left with nothing in its
+ * place.
+ *
+ * The menu: the theme prints the same theme location again in the legal bar below, because that
+ * is the only place it can sit beside the copyright - the parent renders it inside <footer>,
+ * which closes before the details arrive. display:none takes it out of the accessibility tree and
+ * the tab order, so there is one menu on the page, not two. Deleting this line and the nav in
+ * functions.php restores the parent's row unchanged.
+ *
+ * The branding slot: it renders only when a logo or tagline is configured. :has(*) is what tells
+ * "configured, and shown from elsewhere" apart from "nothing to show" - this hides the latter,
+ * so an empty div cannot hold a gap open, and a footer logo set later still appears.
+ *
+ * `:not(.footer-stacked)` is not a state this site uses; it is there to match, class for class, the
+ * rule it has to beat. Below 576px the parent has
+ * `.site-footer:not(.footer-stacked) .footer-inner .site-navigation { display: block }` - four simple
+ * selectors to this file's three - and a shorter selector here loses at the one width where the
+ * footer stacks, leaving two menus on the page. Matching its shape ties the two and lets the later
+ * file win, which is what it is enqueued last for.
+ */
+.site-footer:not(.footer-stacked) .footer-inner .site-navigation,
+.site-footer .footer-inner .site-branding:not(:has(*)) {
+	display: none;
+}
+
+/*
+ * "Bookify Studio" and the opening hours as two columns of one row, rather than two stacked
+ * blocks - which is what made the footer read as a narrow strip of small print in the left third
+ * of a wide page. The second column is `auto`, so it takes the width of the hours and sits flush
+ * right with no dead gap between the two.
+ *
+ * Scoped to the body-level element: the identical component is printed inside the Contact page's
+ * copy, where it stays centred in the article as the plugin's own stylesheet asks.
+ */
+body > .bookify-business {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	padding: var(--bk-space-lg) var(--bk-footer-gutter);
+	text-align: start;
+}
+
+/*
+ * margin-inline is load-bearing. The plugin's stylesheet centres each of these with
+ * `max-width: 34rem; margin-inline: auto`, and on a grid item auto margins make the box
+ * shrink-to-fit and centre it - measured at 390px, the name was a 133px box floating in the middle
+ * of its column rather than a line starting at the gutter. Resetting them lets each item fill the
+ * column it was placed in, which is what makes the column edge the text edge.
+ */
+body > .bookify-business > * {
+	grid-column: 1;
+	min-width: 0;
+	margin-inline: 0;
+}
+
+/* The business name is the footer's brand line, so it carries the display face. */
+body > .bookify-business strong {
+	margin-block-end: var(--bk-space-3xs);
+	color: var(--bk-ink);
+	font-family: var(--bk-font-display);
+	font-size: var(--bk-step-1);
+	line-height: 1.2;
+}
+
+body > .bookify-business .bookify-business__line {
+	max-width: var(--bk-measure);
+}
+
+/*
+ * On one column the hours stay a stacked group, and keep the rule that separates them. The
+ * selector is one class longer than the generic reset above because the plugin reaches this
+ * element through `.bookify-business .bookify-availability` - which outranks `> *` and would put
+ * the auto margins back, leaving the hours a centred box in the middle of the column.
+ */
+body > .bookify-business > .bookify-availability {
+	grid-column: 1;
+	margin-inline: 0;
+	margin-block-start: var(--bk-space-md);
+}
+
+body > .bookify-business .bookify-availability__title {
+	margin-block-end: var(--bk-space-3xs);
+	color: var(--bk-ink);
+	font-size: var(--bk-step--1);
+	letter-spacing: 0.01em;
+}
+
+@media (min-width: 48rem) {
+	body > .bookify-business {
+		grid-template-columns: minmax(0, 1fr) auto;
+		column-gap: var(--bk-space-2xl);
+	}
+
+	/*
+	 * Above the breakpoint the hours are a column of their own, so the separator above them is
+	 * the column gap rather than a line - two columns already say "these are different things".
+	 */
+	body > .bookify-business > .bookify-availability {
+		grid-column: 2;
+		grid-row: 1;
+		margin-block-start: 0;
+		padding-block-start: 0;
+		border-block-start: 0;
+	}
+}
+
+/*
+ * The legal bar, printed by this theme on wp_footer so it is the last row on the page - under the
+ * business details, which the parent's <footer> closes before. Menu on the left, copyright on the
+ * right, so the footer ends on a line rather than on a sentence floating in space, and the two
+ * sit on the same gutter as every other row above them.
+ */
+.bookify-footer-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--bk-space-sm) var(--bk-space-lg);
+	padding: var(--bk-space-md) var(--bk-footer-gutter) var(--bk-space-lg);
+	border-block-start: 1px solid var(--bk-line);
+	background-color: var(--bk-surface-warm);
+}
+
+.bookify-footer-bar__nav ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--bk-space-sm) var(--bk-space-md);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.bookify-footer-bar__nav a {
+	color: var(--bk-ink);
+	font-size: var(--bk-step--1);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.bookify-footer-bar__nav a:hover,
+.bookify-footer-bar__nav a:focus-visible {
+	color: var(--bk-accent-strong);
+	text-decoration: underline;
+	text-underline-offset: 0.2em;
+}
+
+.bookify-footer-bar__legal {
+	margin: 0;
+	color: var(--bk-muted);
+	font-size: var(--bk-step--1);
+}
+
+/* The skip link is off-screen until it is focused, and then it is the first thing
+   on the page rather than a clipped span. */
+.skip-link:focus {
+	position: fixed;
+	top: var(--bk-space-sm);
+	left: var(--bk-space-sm);
+	z-index: 100;
+	width: auto;
+	height: auto;
+	padding: var(--bk-space-xs) var(--bk-space-sm);
+	clip-path: none;
+	border-radius: var(--bk-radius-sm);
+	background-color: var(--bk-ink);
+	color: var(--bk-surface);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+/* ==========================================================================
+ * 4. The Elementor surface
+ *
+ * Everything here is prefixed with body.elementor-kit-4 for one reason: this file is
+ * enqueued before Elementor's own, so a tie on specificity would be lost on document
+ * order. The prefix wins on specificity instead, which is order-independent.
+ *
+ * Nothing is !important, and no rule is more specific than the per-element settings
+ * Elementor writes for a single widget (four classes), so an edit made in the builder
+ * still takes effect - that is the line this file does not cross.
+ * ========================================================================== */
+
+body.elementor-kit-4 .elementor-widget-heading .elementor-heading-title {
+	color: var(--bk-ink);
+	font-family: var(--bk-font-display);
+	font-weight: 600;
+	line-height: 1.14;
+	letter-spacing: -0.015em;
+	text-wrap: balance;
+}
+
+body.elementor-kit-4 h1.elementor-heading-title { font-size: var(--bk-step-5); }
+body.elementor-kit-4 h2.elementor-heading-title { font-size: var(--bk-step-4); }
+body.elementor-kit-4 h3.elementor-heading-title { font-size: var(--bk-step-3); }
+body.elementor-kit-4 h4.elementor-heading-title { font-size: var(--bk-step-2); }
+
+body.elementor-kit-4 .elementor-widget-text-editor {
+	color: var(--bk-body);
+	font-family: var(--bk-font-body);
+	font-size: var(--bk-step-0);
+	line-height: 1.7;
+}
+
+/*
+ * One button, everywhere. Elementor's own default is the kit's accent colour, the plugin's
+ * components are told to use the same pair, and the hero and closing bands override to a
+ * light fill below - so a visitor sees one button shape and one button colour no matter
+ * which half of the project rendered it.
+ */
+body.elementor-kit-4 .elementor-widget-button .elementor-button {
+	border: 1px solid var(--bk-accent);
+	border-radius: var(--bk-radius-pill);
+	background-color: var(--bk-accent);
+	color: var(--bk-on-accent);
+	font-family: var(--bk-font-body);
+	font-size: var(--bk-step--1);
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	line-height: 1;
+	padding: 1rem 1.75rem;
+	box-shadow: var(--bk-shadow-sm);
+	transition: background-color var(--bk-dur) var(--bk-ease),
+		border-color var(--bk-dur) var(--bk-ease),
+		color var(--bk-dur) var(--bk-ease),
+		transform var(--bk-dur) var(--bk-ease),
+		box-shadow var(--bk-dur) var(--bk-ease);
+}
+
+body.elementor-kit-4 .elementor-widget-button .elementor-button:hover,
+body.elementor-kit-4 .elementor-widget-button .elementor-button:focus-visible {
+	border-color: var(--bk-accent-strong);
+	background-color: var(--bk-accent-strong);
+	color: var(--bk-on-accent);
+	transform: translateY(-1px);
+	box-shadow: var(--bk-shadow-md);
+}
+
+/*
+ * The two dark bands on the front page.
+ *
+ * Elementor stores their backgrounds as literals (#54595F on the hero, #3d4247 on the
+ * closing band), so the kit's palette cannot reach them and they stay grey-blue against
+ * a warm page. Each is named here instead. Both ids are content, not code: if either
+ * band is rebuilt in the builder, re-check these two rules - and delete the button line
+ * if you restyle that button in Elementor, because this is what would hide your change.
+ */
+body.elementor-kit-4 .elementor .elementor-element.elementor-element-e4097d3,
+body.elementor-kit-4 .elementor .elementor-element.elementor-element-620a14c {
+	background-color: var(--bk-band);
+}
+
+body.elementor-kit-4 .elementor .elementor-element:is(
+	.elementor-element-e4097d3,
+	.elementor-element-620a14c
+) .elementor-button {
+	border-color: transparent;
+	background-color: var(--bk-band-ink);
+	color: var(--bk-band);
+}
+
+body.elementor-kit-4 .elementor .elementor-element:is(
+	.elementor-element-e4097d3,
+	.elementor-element-620a14c
+) .elementor-button:hover,
+body.elementor-kit-4 .elementor .elementor-element:is(
+	.elementor-element-e4097d3,
+	.elementor-element-620a14c
+) .elementor-button:focus-visible {
+	border-color: transparent;
+	background-color: #ffffff;
+	color: var(--bk-ink);
+}
+
+/* Body copy on those bands is stored as literal white, which is correct there and is
+   left alone; only the measure is constrained so a wide band does not run to 1200px. */
+body.elementor-kit-4 .elementor .elementor-element:is(
+	.elementor-element-e4097d3,
+	.elementor-element-620a14c
+) .elementor-widget-text-editor p {
+	max-width: var(--bk-measure);
+	margin-inline: auto;
+}
+
+/* A widget that renders the plugin's own listing sits full width inside the container. */
+body.elementor-kit-4 .elementor-widget-bookify_service_list {
+	width: 100%;
+}
+
+/*
+ * The booking page's own title repeats the form's: the page is called "Book" and the form's heading
+ * is "Book an appointment", so a visitor reads the same word twice before the form starts. The
+ * form's heading is the one that says something, so the page's title is taken out of the layout.
+ *
+ * Visually hidden rather than display:none, deliberately. It is the only <h1> on the page, and
+ * display:none would take it out of the accessibility tree as well - leaving a page with no heading
+ * for a screen reader and nothing for a search engine to read as its subject. The declarations below
+ * are the standard "visually hidden" recipe: still in the document, taking no space on screen.
+ *
+ * Named by page id, which is content rather than code — the same bargain the two dark bands make.
+ * If the booking page is ever recreated, point this rule at the new id. Only that page: on
+ * "Manage booking" and "My bookings" the title and the form's heading read as a page and a form,
+ * not as a repeat of one another, so they are left alone.
+ */
+body.page-id-22 .page-header {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* ==========================================================================
+ * 5. The theme's own templates
+ *
+ * `.bookify-session` and `.bookify-event` are this theme's own markup - the only two
+ * templates the project puts in the theme (plan D15 and D23) - and until now no stylesheet
+ * anywhere in the project mentioned either class. The plugin's `.bookify-booking*`
+ * components are deliberately not styled here; they ship their own CSS with them.
+ *
+ * `.bookify-404` joins them from the other direction: it is a *template part* override -
+ * `template-parts/404.php`, which the parent's `index.php` draws for a 404 - so the parent
+ * keeps the routing, the header and the footer, and only the panel in between is ours.
+ * ========================================================================== */
+
+/*
+ * These two templates supply their own rhythm, and Hello Elementor's <main> adds 10px of
+ * inline padding below 768px that would be a third layer of the same thing. Removed here
+ * rather than compensated for: on a 390px screen every saved pixel is a field's width.
+ */
+.bookify-session,
+.bookify-event {
+	padding-inline: 0;
+}
+
+.bookify-session .bookify-session__article,
+.bookify-event .bookify-event__article {
+	display: grid;
+	gap: var(--bk-space-lg);
+	max-width: var(--bk-container);
+	margin-inline: auto;
+	padding: var(--bk-space-2xl) clamp(0.75rem, 3vw, 1.5rem) 0;
+}
+
+.bookify-session .bookify-session__header,
+.bookify-event .bookify-event__header {
+	max-width: var(--bk-measure);
+}
+
+.bookify-session .bookify-session__title,
+.bookify-event .bookify-event__title {
+	margin: 0 0 var(--bk-space-xs);
+}
+
+/*
+ * The session's photograph, between the title and the copy.
+ *
+ * Full container width while the text below stays at the measure: an editorial shape, and the only
+ * way a 960px photograph is worth carrying on a 1440px screen. Cropped to one shape so pages do not
+ * jump as a visitor moves between them, and `object-fit` rather than a stretch — a stretched face is
+ * worse than a cropped one, every time.
+ *
+ * Capped, though: at a plain 2:1 the photograph is 546px tall at a 1092px container and pushes the
+ * first paragraph of the description off the bottom of a 900px window, which makes a page whose job
+ * is to explain the session explain nothing until you scroll.
+ */
+.bookify-session .bookify-session__figure {
+	margin: 0;
+}
+
+.bookify-session .bookify-session__image {
+	display: block;
+	width: 100%;
+	aspect-ratio: 2 / 1;
+	max-height: 24rem;
+	object-fit: cover;
+	border-radius: var(--bk-radius-lg);
+}
+
+/*
+ * Headings inside a session's own copy. The base `h2` is a page-level size, and one of those in the
+ * middle of four paragraphs shouts; these sit a step above the body text instead, which is what
+ * makes a long description scannable rather than a wall.
+ */
+.bookify-session .bookify-session__content h2 {
+	margin: var(--bk-space-lg) 0 var(--bk-space-2xs);
+	font-size: var(--bk-step-1);
+}
+
+.bookify-session .bookify-session__content > h2:first-child {
+	margin-block-start: 0;
+}
+
+.bookify-session .bookify-session__meta,
+.bookify-event .bookify-event__when,
+.bookify-event .bookify-event__places {
+	display: inline-block;
+	margin: 0 var(--bk-space-2xs) var(--bk-space-2xs) 0;
+	padding: var(--bk-space-3xs) var(--bk-space-xs);
+	border-radius: var(--bk-radius-pill);
+	background-color: var(--bk-accent-soft);
+	color: var(--bk-accent-strong);
+	font-size: var(--bk-step--1);
+	font-weight: 600;
+	letter-spacing: 0.01em;
+}
+
+.bookify-event .bookify-event__places {
+	background-color: var(--bk-tint);
+	color: var(--bk-ink);
+}
+
+.bookify-session .bookify-session__content,
+.bookify-event .bookify-event__content {
+	max-width: var(--bk-measure);
+}
+
+.bookify-session .bookify-session__content > :first-child,
+.bookify-event .bookify-event__content > :first-child {
+	margin-block-start: 0;
+}
+
+/* The tier list: a price per ticket and the places left in it, as one scannable line
+   each rather than three loose spans. */
+.bookify-event .bookify-event__tiers {
+	display: grid;
+	gap: var(--bk-space-2xs);
+	max-width: 34rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.bookify-event .bookify-event__tier {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	align-items: center;
+	gap: var(--bk-space-sm);
+	padding: var(--bk-space-xs) var(--bk-space-sm);
+	border: 1px solid var(--bk-line);
+	border-radius: var(--bk-radius-md);
+	background-color: var(--bk-surface);
+	box-shadow: var(--bk-shadow-sm);
+}
+
+.bookify-event .bookify-event__tier-name {
+	color: var(--bk-ink);
+	font-weight: 600;
+}
+
+.bookify-event .bookify-event__tier-price {
+	color: var(--bk-ink);
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+.bookify-event .bookify-event__tier-left {
+	color: var(--bk-muted);
+	font-size: var(--bk-step--1);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+/* The ticket panel under the copy, on the event template. */
+.bookify-event .bookify-event__tickets {
+	margin-block-start: var(--bk-space-sm);
+	padding: clamp(1rem, 3.5vw, 2.25rem);
+	border: 1px solid var(--bk-line);
+	border-radius: var(--bk-radius-lg);
+	background-color: var(--bk-surface-warm);
+	box-shadow: var(--bk-shadow-md);
+}
+
+/*
+ * The one action on a session page. The page is the description and a way through, so this is the
+ * only thing under the copy and it carries the weight of a primary action: the same accent pill the
+ * form's own submit button and the listing's rows use, a size up from the rows because there is
+ * nothing else on this page competing with it.
+ */
+.bookify-session .bookify-session__cta {
+	margin: 0;
+	padding-block-start: var(--bk-space-lg);
+}
+
+.bookify-session .bookify-session__book {
+	display: inline-block;
+	padding: 0.85rem 1.9rem;
+	border: 1px solid var(--bk-accent);
+	border-radius: var(--bk-radius-pill);
+	background-color: var(--bk-accent);
+	color: var(--bk-on-accent);
+	font-weight: 600;
+	text-decoration: none;
+	box-shadow: var(--bk-shadow-sm);
+	transition: transform var(--bk-dur) var(--bk-ease), border-color var(--bk-dur) var(--bk-ease), background-color var(--bk-dur) var(--bk-ease);
+}
+
+.bookify-session .bookify-session__book:hover,
+.bookify-session .bookify-session__book:focus-visible {
+	border-color: var(--bk-accent-strong);
+	background-color: var(--bk-accent-strong);
+	color: var(--bk-on-accent);
+	transform: translateY(-1px);
+}
+
+@media (max-width: 479px) {
+	.bookify-event .bookify-event__tier {
+		grid-template-columns: 1fr auto;
+	}
+
+	.bookify-event .bookify-event__tier-left {
+		grid-column: 1 / -1;
+	}
+}
+
+/*
+ * The 404 page, which is a template part override rather than a template. It centres one panel
+ * in most of a viewport, with a soft wash of colour behind the number.
+ *
+ * Both the height and the padding are fluid and the panel has its own rhythm, so the page does
+ * not inherit Hello Elementor's 10px inline padding or an arbitrary 300px of empty space.
+ * `overflow: hidden` is what keeps the wash, which is wider than the panel, from ever being
+ * counted as an overflow - the same guarantee the rest of the site makes.
+ */
+.bookify-404 {
+	position: relative;
+	display: grid;
+	place-items: center;
+	overflow: hidden;
+	min-height: 60vh;
+	padding: var(--bk-space-2xl) clamp(0.75rem, 3vw, 1.5rem);
+	text-align: center;
+}
+
+/*
+ * The wash. Positioned out of flow so it is not a second grid item - an in-flow `::before` on a
+ * grid container is a grid item, and `place-items` would then stack it above the panel instead of
+ * putting it behind - and centred with the independent `translate` property so the breathing
+ * animation below can own `transform` without fighting the centring.
+ *
+ * The colour is mixed from the accent rather than picked, so it follows the palette into dark
+ * mode on its own. Engines without `color-mix()` drop the declaration and simply have no wash.
+ */
+.bookify-404::before {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	z-index: 0;
+	width: min(30rem, 90%);
+	aspect-ratio: 1;
+	translate: -50% -50%;
+	border-radius: 50%;
+	background-image: radial-gradient(circle, color-mix(in srgb, var(--bk-accent) 20%, transparent), transparent 70%);
+	pointer-events: none;
+}
+
+.bookify-404__inner {
+	position: relative;
+	z-index: 1;
+	max-width: 34rem;
+}
+
+/*
+ * The number is the page's decoration, not its message: it is `aria-hidden` in the template, so
+ * it is allowed to be a colour that would fail contrast as a text colour. The heading below it
+ * is what carries the message and keeps its ink.
+ */
+.bookify-404__code {
+	margin: 0 0 var(--bk-space-sm);
+	color: color-mix(in srgb, var(--bk-accent) 58%, var(--bk-ink));
+	font-family: var(--bk-font-display);
+	font-size: clamp(5rem, 3rem + 12vw, 10rem);
+	font-weight: 600;
+	line-height: 0.9;
+	letter-spacing: -0.04em;
+	font-variant-numeric: tabular-nums;
+}
+
+/* One step below the base h1, so the number still reads as the largest thing on the page. */
+.bookify-404__title {
+	margin: 0 0 var(--bk-space-xs);
+	font-size: var(--bk-step-4);
+}
+
+.bookify-404__lead {
+	margin: 0 auto var(--bk-space-lg);
+	max-width: var(--bk-measure);
+	color: var(--bk-body);
+}
+
+.bookify-404__actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--bk-space-xs);
+	margin: 0;
+}
+
+/* Same pill as the booking form's submit button, so the two primary actions on the site match. */
+.bookify-404__action {
+	display: inline-block;
+	padding: 0.85rem 1.6rem;
+	border: 1px solid var(--bk-line);
+	border-radius: var(--bk-radius-pill);
+	background-color: var(--bk-surface);
+	color: var(--bk-ink);
+	font-size: var(--bk-step--1);
+	font-weight: 600;
+	text-decoration: none;
+	transition: transform var(--bk-dur) var(--bk-ease), border-color var(--bk-dur) var(--bk-ease), background-color var(--bk-dur) var(--bk-ease);
+}
+
+.bookify-404__action:hover,
+.bookify-404__action:focus-visible {
+	border-color: var(--bk-accent);
+	transform: translateY(-1px);
+}
+
+.bookify-404__action--primary {
+	border-color: var(--bk-accent);
+	background-color: var(--bk-accent);
+	color: var(--bk-on-accent);
+}
+
+.bookify-404__action--primary:hover,
+.bookify-404__action--primary:focus-visible {
+	border-color: var(--bk-accent-strong);
+	background-color: var(--bk-accent-strong);
+	color: var(--bk-on-accent);
+}
+
+/*
+ * At phone width the three pills wrapped two-then-one, which reads as an accident. A grid makes it
+ * deliberate: the primary action takes the full width and the two quieter links sit under it side
+ * by side. `gap` is already set on the row, and grid uses it the same way flex does.
+ */
+@media (max-width: 479px) {
+	.bookify-404__actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.bookify-404__action--primary {
+		grid-column: 1 / -1;
+	}
+}
+
+/* ==========================================================================
+ * 6. Motion
+ *
+ * Every duration comes from a token and every rule here is inside a
+ * no-preference query, so a visitor who asks for reduced motion gets the final
+ * state with no transition and no entrance at all.
+ * ========================================================================== */
+
+@media (prefers-reduced-motion: no-preference) {
+	html {
+		scroll-behavior: smooth;
+	}
+
+	/*
+	 * Section copy lifts into place as it is scrolled to, using the scroll position as the
+	 * animation's clock rather than a listener.
+	 *
+	 * Three things here are deliberate. It animates the transform and *not* the opacity: a
+	 * fade would leave a section that is taller than the viewport sitting at zero opacity
+	 * until it was half scrolled past - measured at 390px, where the sessions grid is 1191px
+	 * tall - and content should never be invisible at any scroll position. `screen` keeps it
+	 * out of print. `@supports` keeps it out of engines that cannot run it, and since the
+	 * range completes by the time a section is 60% entered, nothing is left part-way moved.
+	 * The hero is excluded: the first thing on the page should not need a scroll to settle.
+	 */
+	@supports (animation-timeline: view()) {
+		body.elementor-kit-4 .page-content > .elementor > .e-con:not(:first-child) {
+			animation: bookify-lift linear both;
+			animation-timeline: view();
+			animation-range: entry 0% entry 60%;
+		}
+	}
+
+	/*
+	 * The 404 page: the number drifts, the wash behind it breathes, and the copy settles on load
+	 * with a short stagger.
+	 *
+	 * Still transform-only, for the reason above - nothing here can leave text invisible. Each of
+	 * the three has its own full `animation` shorthand instead of a shared rule plus an
+	 * `animation-delay`: the shorthand resets the delay to zero, and a later declaration of equal
+	 * specificity does win but only by source order, which is a fragile thing to rely on for the
+	 * stagger. The number is deliberately not in this list - it has the drift below, and a second
+	 * `animation` declaration on the same element replaces the first rather than adding to it.
+	 */
+	.bookify-404__title {
+		animation: bookify-lift 700ms var(--bk-ease) 70ms both;
+	}
+
+	.bookify-404__lead {
+		animation: bookify-lift 700ms var(--bk-ease) 140ms both;
+	}
+
+	.bookify-404__actions {
+		animation: bookify-lift 700ms var(--bk-ease) 210ms both;
+	}
+
+	.bookify-404__code {
+		animation: bookify-404-float 7s var(--bk-ease) infinite alternate;
+	}
+
+	.bookify-404::before {
+		animation: bookify-404-breathe 9s var(--bk-ease) infinite alternate;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+
+	/*
+	 * The only `!important`s in this file, and they are here for a reason that is not a style
+	 * decision: a reduced-motion request has to beat every declaration an animation was written
+	 * with, whatever their specificity, and the sections above explain that nothing here is
+	 * `!important` so an editor can override any individual widget. These three only ever remove
+	 * motion - they cannot change a colour, a size or a layout - and they cover animations added
+	 * later by anything at all, which is the point.
+	 */
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.001ms !important;
+	}
+}
+
+@keyframes bookify-lift {
+	from {
+		transform: translateY(1.25rem);
+	}
+
+	to {
+		transform: none;
+	}
+}
+
+@keyframes bookify-404-float {
+	from {
+		transform: translateY(-0.4rem);
+	}
+
+	to {
+		transform: translateY(0.4rem);
+	}
+}
+
+@keyframes bookify-404-breathe {
+	from {
+		transform: scale(0.86);
+	}
+
+	to {
+		transform: scale(1.08);
+	}
+}
+
+/* ==========================================================================
+ * 7. Dark mode
+ *
+ * Tokens only, which is the whole reason the palette is declared in one place: the
+ * band stays dark (its copy is stored as literal white), the kit bridge above picks
+ * the new values up automatically, and the components read them through --bk-*.
+ * ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bk-accent: #5fbfae;
+		--bk-accent-strong: #8fd6c8;
+		--bk-accent-soft: #16302c;
+
+		--bk-ink: #f2efe9;
+		--bk-body: #c3bcb1;
+		--bk-muted: #9a9384;
+		--bk-surface: #101413;
+		--bk-surface-warm: #171c1a;
+		--bk-line: #2a3230;
+		--bk-field-bg: #161b19;
+
+		--bk-success: #7fc79b;
+		--bk-error: #f2a2a2;
+
+		/* Light teal needs dark text: 8.6:1 against #101413, where white would be 2.2:1. */
+		--bk-on-accent: #101413;
+
+		color-scheme: dark;
+	}
+
+	/* The header's translucent treatment has to be re-stated: the light rule mixes
+	   against --bk-surface, which is fine, but the border needs the dark line. */
+	.site-header {
+		border-block-end-color: var(--bk-line);
+	}
+
+	/* The bands keep the light fill: their background stays --bk-band in both schemes. */
+	body.elementor-kit-4 .elementor .elementor-element:is(
+		.elementor-element-e4097d3,
+		.elementor-element-620a14c
+	) .elementor-button {
+		background-color: var(--bk-band-ink);
+		color: var(--bk-band);
+	}
+}

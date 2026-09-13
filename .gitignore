@@ -1,0 +1,22 @@
+# Secrets and machine-specific config; never committed.
+.env
+.mcp.json
+
+# The editor's MCP servers keep their credentials in these two, and neither was matched by the
+# patterns above: `.vscode/mcp.json` is a different filename from `.mcp.json`, and
+# `.elementor-mcp-credential` is a token file of its own. `git add .` would have published both.
+.vscode/mcp.json
+.elementor-mcp-credential
+
+# Claude Code keeps its per-project approvals here.
+.claude/settings.local.json
+
+# WordPress runtime state - not project code.
+wp-content/uploads/
+wp-content/upgrade/
+wp-content/cache/
+wp-content/debug.log
+*.log
+
+.DS_Store
+Thumbs.db

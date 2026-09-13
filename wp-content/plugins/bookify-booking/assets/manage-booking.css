@@ -1,0 +1,168 @@
+/*
+ * The manage page and My bookings.
+ *
+ * The design tokens, the fields and the whole picker come from booking-form.css, which these pages
+ * enqueue as well: what is here is only what they add on top of the form — the list of a booking's
+ * own details, the state line, and the button that cannot be undone.
+ */
+
+.bookify-manage__details {
+	display: grid;
+	grid-template-columns: minmax(6rem, auto) minmax(0, 1fr);
+	gap: 0.45rem 1.25rem;
+	margin: 0 0 1.5rem;
+	padding: 1rem 1.25rem;
+	border: 1px solid var(--bookify-line);
+	border-radius: var(--bookify-radius);
+	background: var(--bookify-tint);
+}
+
+.bookify-manage__label {
+	color: var(--bookify-ink);
+	font-weight: 600;
+}
+
+.bookify-manage__value {
+	margin: 0;
+}
+
+/* A value that needs no label of its own — the price and length line — takes the whole row. */
+.bookify-manage__label:empty {
+	display: none;
+}
+
+.bookify-manage__label:empty + .bookify-manage__value {
+	grid-column: 1 / -1;
+}
+
+.bookify-manage__state {
+	margin: 0;
+	padding: 0.75rem 1rem;
+	border-inline-start: 4px solid var(--bookify-ink);
+	border-radius: var(--bookify-radius-sm);
+	background: var(--bookify-tint);
+	color: var(--bookify-ink);
+	font-weight: 600;
+}
+
+.bookify-manage__picker {
+	margin: 0 0 1.5rem;
+	padding-block-end: 1.5rem;
+	border-block-end: 1px solid var(--bookify-line);
+}
+
+/*
+ * Paying (T24). The button is the form's own submit button, so it looks like every other primary
+ * action on the site; what is added here is the separation between the payment and the two things
+ * below it, and the note that stops a customer paying twice while a webhook is in flight.
+ */
+.bookify-manage__pay {
+	margin: 0 0 1.5rem;
+	padding-block-end: 1.5rem;
+	border-block-end: 1px solid var(--bookify-line);
+}
+
+.bookify-manage__pay-form {
+	margin: 0 0 0.75rem;
+}
+
+.bookify-manage__pay .bookify-booking__intro {
+	margin-block-end: 0.75rem;
+}
+
+.bookify-manage__cancel {
+	margin: 0;
+}
+
+/*
+ * Cancelling is the secondary action and is drawn like one: outlined rather than filled, so it does
+ * not compete with "Move my booking", and never the accent colour, which is what focus looks like.
+ */
+.bookify-manage__cancel-button {
+	min-height: 2.75rem;
+	padding: 0.75rem 1.75rem;
+	border: 1px solid var(--bookify-line);
+	border-radius: var(--bk-radius-pill, 999px);
+	background: var(--bookify-field-bg);
+	color: var(--bookify-ink);
+	font: inherit;
+	cursor: pointer;
+	transition: background-color var(--bookify-dur, 220ms) cubic-bezier(0.2, 0.7, 0.2, 1),
+		border-color var(--bookify-dur, 220ms) cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.bookify-manage__cancel-button:hover {
+	background: var(--bookify-tint);
+	border-color: var(--bookify-ink);
+}
+
+.bookify-manage__cancel-button:focus-visible {
+	outline: 3px solid var(--bookify-accent);
+	outline-offset: 2px;
+}
+
+.bookify-manage__lookup {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 1rem;
+}
+
+@container (min-width: 30rem) {
+	.bookify-manage__lookup {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+/* ---- the account offer, and My bookings (T22) ---- */
+
+.bookify-account {
+	margin: 1.5rem 0 0;
+	padding: 1.25rem;
+	border: 1px solid var(--bookify-line);
+	border-radius: var(--bookify-radius);
+	background: var(--bookify-tint);
+}
+
+.bookify-account__form {
+	margin: 0;
+}
+
+.bookify-account-list .bookify-manage {
+	margin-block-end: 2rem;
+	padding-block-end: 2rem;
+	border-block-end: 1px solid var(--bookify-line);
+}
+
+.bookify-account-list .bookify-manage:last-of-type {
+	border-block-end: 0;
+}
+
+/* A link dressed as the primary button: "sign in", "book an appointment". */
+.bookify-account__link {
+	display: inline-block;
+	min-height: 2.75rem;
+	padding: 0.75rem 1.75rem;
+	border: 1px solid var(--bookify-accent);
+	border-radius: var(--bk-radius-pill, 999px);
+	background: var(--bookify-accent);
+	color: var(--bookify-on-accent, #fff);
+	font-weight: var(--e-global-typography-accent-font-weight, 600);
+	text-decoration: none;
+}
+
+.bookify-account__link:hover {
+	background: var(--bk-accent-strong, #0e4a42);
+	border-color: var(--bk-accent-strong, #0e4a42);
+	color: var(--bookify-on-accent, #fff);
+}
+
+.bookify-account__link:focus-visible {
+	outline: 3px solid var(--bookify-accent);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.bookify-manage__cancel-button {
+		transition: none;
+	}
+}

@@ -1,0 +1,164 @@
+# Bookify on Render — the blueprint for a live booking business.
+#
+# **Not the file Render applies by default.** Render reads `render.yaml`; this one has to be named
+# explicitly (`render blueprints ...` / the Blueprint's setup field), or renamed over `render.yaml`
+# once you have moved off the free plan.
+#
+# **This needs a paid plan.** Every piece of it is unavailable on free: private services and cron jobs
+# do not have free instance types, and free web services cannot attach a persistent disk. What those
+# three unlocked are exactly what makes the difference between a site and a demo —
+#
+#   * the disk keeps wp-content/uploads, so the session photographs and Elementor's generated CSS
+#     survive a redeploy, a restart and a spin-down;
+#   * the cron job runs wp-cron.php every five minutes, which is what sends the reminders and expires
+#     unpaid bookings — scheduled work that has existed since stages 5 and 8;
+#   * the MariaDB private service means the site's database is on the private network rather than on
+#     somebody else's free tier.
+#
+# It also gives you Shell access, which is the only way to import a database dump — see
+# docs/DEPLOY-RENDER.md.
+#
+# `render.yaml` beside this file is the free-tier version, with all three of those losses stated.
+#
+# Fields are used as documented at https://render.com/docs/blueprint-spec. Secret values are `sync:
+# false`, which prompts for them once during the initial Blueprint creation; put nothing secret in this
+# file.
+#
+# NOT TESTED AGAINST A LIVE RENDER ACCOUNT. The image it builds has been built and booted locally (see
+# docs/DEPLOY-RENDER.md for what was checked and what was not), but the private-network wiring and the
+# cron job below have not been run on Render itself.
+
+services:
+
+  # ---------------------------------------------------------------- the WordPress site
+  - type: web
+    name: bookify
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: frankfurt
+    plan: 1c-2g
+
+    # Deliberately no healthCheckPath. WordPress answers 500 while its database is unreachable, and
+    # 302 to /wp-admin/install.php while it is uninstalled — both normal during a first deploy, and a
+    # health check would turn either into a failed deploy. The service listening on $PORT is the honest
+    # signal at this stage. Once the site is installed, `/wp-login.php` is a good check to add.
+
+    envVars:
+      # The database. `property: host` is the private-network hostname on its own; the Dockerfile's
+      # entrypoint appends `:3306`, because the Blueprint cannot interpolate and `hostport` would be
+      # the service's HTTP port rather than MariaDB's.
+      - key: WORDPRESS_DB_HOST
+        fromService:
+          name: bookify-db
+          type: pserv
+          property: host
+      - key: WORDPRESS_DB_NAME
+        value: wordpress
+      - key: WORDPRESS_DB_USER
+        value: wordpress
+      # Referenced from the database service rather than generated here, so the two ends of the
+      # connection are guaranteed to be the same value.
+      - key: WORDPRESS_DB_PASSWORD
+        fromService:
+          name: bookify-db
+          type: pserv
+          envVarKey: MARIADB_PASSWORD
+
+      - key: WORDPRESS_CONFIG_EXTRA
+        value: |
+          define( 'WP_HOME', getenv( 'RENDER_EXTERNAL_URL' ) );
+          define( 'WP_SITEURL', getenv( 'RENDER_EXTERNAL_URL' ) );
+          define( 'WP_ENVIRONMENT_TYPE', 'production' );
+          define( 'FS_METHOD', 'direct' );
+          define( 'WP_DEBUG_DISPLAY', false );
+          // WP-Cron on a Render instance fires only on a page view, and a quiet site gets none — so the
+          // reminders, the payment expiry and the Supabase reconciliation would all silently stop. The
+          // cron job below is what runs them (hitting wp-cron.php). If you delete that service, delete
+          // this line too.
+          define( 'DISABLE_WP_CRON', true );
+
+      # The Supabase mirror. Both are prompted for on first deploy; leave them empty and the mirror
+      # stays switched off, which is a working site. BOOKIFY_SUPABASE_KEY is a service_role credential
+      # — a full-database one — so it belongs here and nowhere else.
+      - key: BOOKIFY_SUPABASE_URL
+        sync: false
+      - key: BOOKIFY_SUPABASE_KEY
+        sync: false
+
+      # A direct socket to Supabase's Postgres instead of its HTTPS API. Optional: leave these unset and
+      # the mirror uses the API, which needs no PHP extension and keeps no database credential in the
+      # application. If a URL is set it takes precedence and the API pair above goes unused.
+      #
+      # **Use the Session pooler string from the dashboard's Connect panel, not "Direct connection".**
+      # db.<ref>.supabase.co is IPv6-only — measured, it has an AAAA record and no A record — and a host
+      # with no IPv6 route cannot reach it. aws-0-<region>.pooler.supabase.com answers on IPv4.
+      #
+      # The URL goes here and the password goes below it, so the secret is not in this file. Percent-
+      # encode anything in the password that is not alphanumeric.
+      - key: BOOKIFY_SUPABASE_DB_URL
+        sync: false
+      - key: BOOKIFY_SUPABASE_DB_PASSWORD
+        sync: false
+      - key: BOOKIFY_SUPABASE_DB_SSLMODE
+        value: require
+
+    disk:
+      # Media and Elementor's generated CSS. Only content: the theme, the plugin and Elementor are baked
+      # into the image, so a redeploy applies the code it deployed while this keeps the uploads.
+      #
+      # A disk disables zero-downtime deploys and prevents scaling past one instance. For a booking site
+      # with a little traffic that is the right trade; the alternative is object storage for uploads.
+      name: bookify-uploads
+      mountPath: /var/www/html/wp-content/uploads
+      sizeGB: 10
+
+  # ---------------------------------------------------------------- MySQL, because WordPress needs it
+  #
+  # Render offers Postgres and Key Value. There is no managed MySQL, so this runs one — which means
+  # backups, upgrades and monitoring are yours, not Render's. Point WORDPRESS_DB_* at a managed MySQL
+  # elsewhere (Aiven, DigitalOcean, RDS) if you would rather not carry that; nothing else changes.
+  - type: pserv
+    name: bookify-db
+    runtime: image
+    image:
+      url: docker.io/library/mariadb:11
+    region: frankfurt
+    plan: 0.5c-512mb
+    envVars:
+      - key: MARIADB_DATABASE
+        value: wordpress
+      - key: MARIADB_USER
+        value: wordpress
+      - key: MARIADB_PASSWORD
+        generateValue: true
+      - key: MARIADB_ROOT_PASSWORD
+        generateValue: true
+    disk:
+      name: bookify-db-data
+      mountPath: /var/lib/mysql
+      sizeGB: 10
+
+  # ---------------------------------------------------------------- WP-Cron, which Render does not run
+  #
+  # Render does not run WP-Cron, and a web service that idles receives no page views to trigger it. This
+  # is not only about the Supabase reconciliation: include/reminders.php, include/event-summary.php and
+  # include/payments/amounts.php have all scheduled work through wp_schedule_single_event since stages 5
+  # and 8, so without this the site stops sending reminders and stops expiring unpaid bookings.
+  #
+  # A Python runtime rather than a Docker one on purpose: a cron job on Render cannot attach a disk, and
+  # this needs no files — one HTTP request. It goes over the private network, so nothing is exposed.
+  - type: cron
+    name: bookify-wp-cron
+    runtime: python
+    region: frankfurt
+    schedule: '*/5 * * * *'
+    buildCommand: 'true'
+    startCommand: |
+      python -c "import os, urllib.request; urllib.request.urlopen('http://' + os.environ['BOOKIFY_HOSTPORT'] + '/wp-cron.php?doing_wp_cron', timeout=55)"
+    envVars:
+      - key: BOOKIFY_HOSTPORT
+        fromService:
+          name: bookify
+          type: web
+          property: hostport

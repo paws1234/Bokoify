@@ -1,0 +1,626 @@
+/*
+ * The booking form's default appearance.
+ *
+ * It ships with the plugin so that switching theme cannot turn the form back into bare
+ * browser controls (plan D8), and it is enqueued from bookify_booking_form_html(), so a
+ * page that does not render the form never loads it.
+ *
+ * Every rule is scoped to .bookify-booking* and nothing here is !important: a theme is
+ * welcome to override any of it. Colours and typography come from the theme — Hello
+ * Elementor puts the Elementor kit class on <body>, so the kit's --e-global-* variables
+ * resolve inside the form. Each one carries a fallback because the form has to look
+ * deliberate with Elementor deactivated as well.
+ */
+
+.bookify-booking,
+.bookify-manage,
+.bookify-account-list {
+	/*
+	 * The chain is the point: the theme's design tokens first, then Elementor's kit
+	 * variables, then a literal. The theme owns the site's palette, this file still
+	 * stands on its own with either of them absent (plan D8), and a component dropped
+	 * on a bare WordPress install still looks deliberate.
+	 */
+	--bookify-ink: var(--bk-ink, var(--e-global-color-secondary, #54595f));
+	--bookify-body: var(--bk-body, var(--e-global-color-text, #7a7a7a));
+	--bookify-accent: var(--bk-accent, var(--e-global-color-primary, #6ec1e4));
+	--bookify-success: var(--bk-success, #2f6b46);
+	--bookify-error: var(--bk-error, #b32d2e);
+	--bookify-line: var(--bk-line, color-mix(in srgb, var(--bookify-ink) 25%, #fff));
+	--bookify-tint: var(--bk-tint, color-mix(in srgb, var(--bookify-ink) 6%, #fff));
+	--bookify-field-bg: var(--bk-field-bg, #fff);
+	--bookify-on-accent: var(--bk-on-accent, #fff);
+	--bookify-radius: var(--bk-radius-md, 6px);
+	--bookify-radius-sm: var(--bk-radius-sm, 4px);
+	--bookify-shadow: var(--bk-shadow-md, 0 4px 14px -4px rgb(0 0 0 / 16%));
+	--bookify-dur: var(--bk-dur, 220ms);
+	--bookify-ease: var(--bk-ease, cubic-bezier(0.2, 0.7, 0.2, 1));
+
+	box-sizing: border-box;
+	/* The form measures itself, not the viewport - see the grid rule below. */
+	container-type: inline-size;
+	max-width: 40rem;
+	margin-inline: auto;
+	color: var(--bookify-body);
+	font-family: var(--e-global-typography-text-font-family, inherit);
+	font-size: 1rem;
+	line-height: 1.6;
+}
+
+.bookify-booking *,
+.bookify-booking *::before,
+.bookify-booking *::after,
+.bookify-manage *,
+.bookify-manage *::before,
+.bookify-manage *::after,
+.bookify-account-list *,
+.bookify-account-list *::before,
+.bookify-account-list *::after {
+	box-sizing: inherit;
+}
+
+/*
+ * [hidden] is spelled out here because the browser's own rule for it loses to any author rule
+ * that sets display — and .bookify-booking__form is a grid. Without this, hiding the times form
+ * while another day is fetched would leave a visible, empty grid behind.
+ */
+.bookify-booking [hidden] {
+	display: none;
+}
+
+.bookify-booking__title {
+	margin: 0 0 0.25rem;
+	color: var(--bookify-ink);
+	font-family: var(--e-global-typography-primary-font-family, inherit);
+	font-weight: var(--e-global-typography-primary-font-weight, 600);
+	line-height: 1.25;
+}
+
+.bookify-booking__intro {
+	margin: 0 0 1.5rem;
+}
+
+/* ---- notices ---- */
+
+.bookify-booking__notice,
+.bookify-booking__empty {
+	margin: 0 0 1.5rem;
+	padding: 0.75rem 1rem;
+	border-inline-start: 4px solid var(--bookify-ink);
+	border-radius: var(--bookify-radius-sm);
+	background: var(--bookify-tint);
+	color: var(--bookify-ink);
+}
+
+/*
+ * The coloured notices lighten towards the *background the notice sits on*, not towards literal
+ * white. Mixing with `#fff` looked right in one scheme and made the notice unreadable in the other:
+ * in dark mode the background came out near-white while the text stayed `--bookify-ink`, which is
+ * near-white there too — a pale panel with pale words on it, which is exactly what a visitor sees
+ * the moment a booking succeeds. `--bookify-field-bg` is the same token the fields use, so it
+ * follows the scheme with them.
+ */
+.bookify-booking__notice--success {
+	border-inline-start-color: var(--bookify-success);
+	background: color-mix(in srgb, var(--bookify-success) 12%, var(--bookify-field-bg));
+}
+
+.bookify-booking__notice--error {
+	border-inline-start-color: var(--bookify-error);
+	background: color-mix(in srgb, var(--bookify-error) 8%, var(--bookify-field-bg));
+}
+
+/* ---- the form itself ---- */
+
+.bookify-booking__form {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 1rem;
+}
+
+/*
+ * Two columns when the form itself is wide enough, not when the window is. The widget is
+ * routinely dropped into a half-width section, where a 768px viewport still leaves each
+ * field about 150px wide; a container query asks the question that actually matters.
+ *
+ * 30rem is chosen to keep the column count the form already had at 390, 768 and 1440 -
+ * this changes which question is asked, not the answer on the pages that exist today.
+ * An engine without @container support ignores these blocks and keeps the single column
+ * above, which is a plain layout rather than a broken one.
+ */
+@container (min-width: 30rem) {
+	.bookify-booking__form {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+.bookify-booking__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+	min-width: 0;
+	margin: 0;
+}
+
+/*
+ * Choosing when: the service, the day, and the button that fetches that day's times. Its own
+ * form above the details, separated by a rule, because it is the one part of the form that the
+ * server answers rather than the visitor filling in.
+ */
+
+.bookify-booking__choose {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 1rem;
+	margin: 0 0 1.25rem;
+	padding-block-end: 1.25rem;
+	border-block-end: 1px solid var(--bookify-line);
+}
+
+@container (min-width: 30rem) {
+	.bookify-booking__choose {
+		grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+		align-items: end;
+	}
+}
+
+.bookify-booking__field label {
+	color: var(--bookify-ink);
+	font-weight: 600;
+	font-size: 0.9375rem;
+}
+
+.bookify-booking__field input,
+.bookify-booking__field select {
+	width: 100%;
+	min-height: 2.75rem;
+	margin: 0;
+	padding: 0.625rem 0.875rem;
+	border: 1px solid var(--bookify-line);
+	border-radius: var(--bookify-radius-sm);
+	background-color: var(--bookify-field-bg);
+	color: var(--bookify-ink);
+	font: inherit;
+	font-variant-numeric: tabular-nums;
+	transition: border-color 120ms ease-in-out;
+}
+
+.bookify-booking__field input::placeholder {
+	color: color-mix(in srgb, var(--bookify-body) 62%, transparent);
+}
+
+/*
+ * A select's arrow is drawn by the platform, ignores every colour declared here, and is
+ * the one control that still looked like bare browser chrome. It is replaced with one
+ * drawn in the field's own text colour. Nothing else about the control changes - it keeps
+ * its keyboard behaviour, its value and its place in the tab order.
+ */
+.bookify-booking__field select {
+	appearance: none;
+	padding-inline-end: 2.5rem;
+	background-image:
+		linear-gradient(45deg, transparent 50%, currentcolor 50%),
+		linear-gradient(135deg, currentcolor 50%, transparent 50%);
+	background-position:
+		calc(100% - 1.15rem) calc(50% + 0.1rem),
+		calc(100% - 0.9rem) calc(50% + 0.1rem);
+	background-repeat: no-repeat;
+	background-size: 0.3rem 0.3rem;
+}
+
+/* Chrome paints its own yellow over an autofilled field. This puts the field back. */
+.bookify-booking__field input:autofill {
+	box-shadow: inset 0 0 0 100px var(--bookify-field-bg);
+	-webkit-text-fill-color: var(--bookify-ink);
+}
+
+.bookify-booking__field input:hover,
+.bookify-booking__field select:hover {
+	border-color: var(--bookify-ink);
+}
+
+/* Focus is never removed, only strengthened. */
+.bookify-booking__field :is(input, select):focus-visible,
+.bookify-booking__submit button:focus-visible {
+	outline: 3px solid var(--bookify-accent);
+	outline-offset: 2px;
+}
+
+.bookify-booking__field :is(input, select):focus-visible {
+	border-color: var(--bookify-accent);
+}
+
+/* Rejected fields (T12 ties these to the message with aria-describedby). */
+
+.bookify-booking__field--invalid label {
+	color: var(--bookify-error);
+}
+
+.bookify-booking__field--invalid :is(input, select) {
+	border-color: var(--bookify-error);
+}
+
+/*
+ * :user-invalid is the browser's own "this has been filled in and it is wrong" state, so a
+ * field is marked while it is being corrected rather than only after a round trip. The
+ * server's class above stays the authority: it is the only one that survives a reload.
+ */
+.bookify-booking__field :is(input, select):user-invalid {
+	border-color: var(--bookify-error);
+}
+
+.bookify-booking__message {
+	margin: 0;
+	color: var(--bookify-error);
+	font-size: 0.875rem;
+}
+
+/* "We are closed that day" is information, not a mistake the visitor made. */
+.bookify-booking__message--info {
+	padding: 0.75rem 1rem;
+	border-inline-start: 4px solid var(--bookify-ink);
+	background: var(--bookify-tint);
+	color: var(--bookify-ink);
+	font-size: 1rem;
+}
+
+/* The honeypot is off-screen, not display:none, so a naive bot still fills it. */
+.bookify-booking__honeypot {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* ---- submit ---- */
+
+.bookify-booking__submit {
+	grid-column: 1 / -1;
+	margin: 0;
+}
+
+.bookify-booking__submit button {
+	width: 100%;
+	min-height: 2.75rem;
+	padding: 0.75rem 1.75rem;
+	border: 1px solid var(--bookify-accent);
+	border-radius: var(--bk-radius-pill, 999px);
+	background-color: var(--bookify-accent);
+	color: var(--bookify-on-accent);
+	font: inherit;
+	font-weight: var(--e-global-typography-accent-font-weight, 600);
+	cursor: pointer;
+	box-shadow: var(--bookify-shadow);
+	transition: background-color var(--bookify-dur) var(--bookify-ease),
+		border-color var(--bookify-dur) var(--bookify-ease),
+		transform var(--bookify-dur) var(--bookify-ease);
+}
+
+.bookify-booking__submit button:hover {
+	background-color: var(--bk-accent-strong, #0e4a42);
+	border-color: var(--bk-accent-strong, #0e4a42);
+	transform: translateY(-1px);
+}
+
+@container (min-width: 30rem) {
+	.bookify-booking__submit button {
+		width: auto;
+		min-width: 12rem;
+	}
+}
+
+/*
+ * "Show times" fetches the day's times; it is not the booking, so it must not look like the
+ * button that books. It keeps the base rule's full-width row rather than sitting in a third
+ * column beside the two selects: measured at 768, a third column leaves each select 188px and
+ * "Deep tissue massage — 85.00 — 60 min" is clipped, where a row of its own leaves 284px.
+ *
+ * The rule comes after the submit rules above on purpose: the selectors have the same
+ * specificity, so document order is what decides which background wins.
+ */
+.bookify-booking__submit--choose button {
+	background: var(--bookify-field-bg);
+	color: var(--bookify-ink);
+	border: 1px solid var(--bookify-line);
+	box-shadow: none;
+}
+
+.bookify-booking__submit--choose button:hover {
+	background: var(--bookify-tint);
+	border-color: var(--bookify-ink);
+	transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.bookify-booking__submit button,
+	.bookify-booking__date-caret {
+		transition: none;
+	}
+}
+
+/* ---- the calendar (T18) ---- */
+
+/*
+ * The month view is WordPress's own jQuery UI datepicker. Core registers no stylesheet for it in
+ * this version — measured: wp-jquery-ui-dialog, the only jQuery UI stylesheet core registers, has
+ * no .ui-datepicker rule in it at all — so the calendar is dressed here, in the form's own
+ * language, rather than left as an unstyled table of links.
+ *
+ * Before the script runs, the select is the visitor's control and there is no calendar at all: a
+ * visitor without JavaScript picks a day the way T16 built. After it, the field is a dropdown —
+ * the trigger names the day that is chosen, and the grid is only on screen while it is open. Those
+ * two states are what the rules below set up.
+ */
+
+.bookify-booking__calendar {
+	display: none;
+}
+
+.bookify-booking--enhanced .bookify-booking__field--date select {
+	display: none;
+}
+
+/* The grid hangs under the field it belongs to, over the rest of the form. */
+.bookify-booking--enhanced .bookify-booking__field--date {
+	position: relative;
+}
+
+.bookify-booking--enhanced .bookify-booking__calendar {
+	display: block;
+	position: absolute;
+	inset-inline: 0;
+	inset-block-start: calc(100% + var(--bk-space-3xs, 0.25rem));
+	z-index: 20;
+}
+
+/*
+ * The rule that actually keeps the dropdown shut. The calendar is a block once enhanced, so
+ * [hidden] has to be given the last word here — without this the attribute would be set and the
+ * grid would still be on screen.
+ */
+.bookify-booking--enhanced .bookify-booking__calendar[hidden] {
+	display: none;
+}
+
+/*
+ * The trigger is a field that happens to open something: the same box, height and type as the
+ * inputs and selects beside it, so the row still reads as one row of controls.
+ */
+.bookify-booking__date-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--bk-space-2xs, 0.5rem);
+	width: 100%;
+	min-height: 2.75rem;
+	padding: 0.625rem 0.875rem;
+	border: 1px solid var(--bookify-line);
+	border-radius: var(--bookify-radius-sm);
+	background-color: var(--bookify-field-bg);
+	color: var(--bookify-ink);
+	font: inherit;
+	font-variant-numeric: tabular-nums;
+	text-align: start;
+	cursor: pointer;
+	transition: border-color 120ms ease-in-out;
+}
+
+.bookify-booking__date-trigger:hover {
+	border-color: var(--bookify-ink);
+}
+
+.bookify-booking__date-trigger:focus-visible {
+	border-color: var(--bookify-accent);
+	outline: 3px solid var(--bookify-accent);
+	outline-offset: 2px;
+}
+
+/* Open reads as chosen: the accent the focus ring uses, so the two agree. */
+.bookify-booking__date-trigger[aria-expanded="true"] {
+	border-color: var(--bookify-accent);
+}
+
+.bookify-booking__date-value {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*
+ * A drawn chevron rather than a typed one, which would be whatever glyph the loaded font happens to
+ * have. It turns over while the grid is open, so the field says which way it goes.
+ */
+.bookify-booking__date-caret {
+	flex: 0 0 auto;
+	width: 0.5rem;
+	height: 0.5rem;
+	border: solid currentcolor;
+	border-width: 0 2px 2px 0;
+	transform: translateY(-0.15rem) rotate(45deg);
+	transition: transform var(--bookify-dur) var(--bookify-ease);
+}
+
+.bookify-booking__date-trigger[aria-expanded="true"] .bookify-booking__date-caret {
+	transform: translateY(0.1rem) rotate(225deg);
+}
+
+/* It floats now, so it sits above the form rather than in it. */
+.bookify-booking__calendar .ui-datepicker {
+	width: 100%;
+	max-width: 22rem;
+	padding: 0.85rem;
+	border: 1px solid var(--bookify-line);
+	border-radius: var(--bookify-radius);
+	background: var(--bookify-field-bg);
+	box-shadow: var(--bk-shadow-lg, var(--bookify-shadow));
+}
+
+.bookify-booking__calendar .ui-datepicker-header {
+	position: relative;
+	margin: 0 0 0.5rem;
+}
+
+.bookify-booking__calendar .ui-datepicker-title {
+	color: var(--bookify-ink);
+	font-weight: 600;
+	line-height: 2rem;
+	text-align: center;
+}
+
+.bookify-booking__calendar .ui-datepicker-prev,
+.bookify-booking__calendar .ui-datepicker-next {
+	position: absolute;
+	top: 0;
+	width: 2rem;
+	height: 2rem;
+	border: 1px solid var(--bookify-line);
+	border-radius: var(--bookify-radius-sm);
+	background: var(--bookify-field-bg);
+	cursor: pointer;
+}
+
+.bookify-booking__calendar .ui-datepicker-prev {
+	left: 0;
+}
+
+.bookify-booking__calendar .ui-datepicker-next {
+	right: 0;
+}
+
+/*
+ * The arrow is drawn here. The word core puts inside the span — "Previous", "Next" — stays in the
+ * markup and in the accessibility tree, which is where it belongs; it is only taken off the screen.
+ */
+.bookify-booking__calendar .ui-datepicker-prev::before,
+.bookify-booking__calendar .ui-datepicker-next::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	width: 0.5rem;
+	height: 0.5rem;
+	margin: auto;
+	border: solid var(--bookify-ink);
+	border-width: 0 0 2px 2px;
+	transform: rotate(45deg);
+}
+
+.bookify-booking__calendar .ui-datepicker-next::before {
+	transform: rotate(225deg);
+}
+
+/*
+ * The month arrows when they cannot go any further. jQuery UI marks them ui-state-disabled, and
+ * binds them no handler at all, so there is nothing to make inert here.
+ */
+.bookify-booking__calendar a.ui-state-disabled {
+	opacity: 0.45;
+}
+
+.bookify-booking__calendar .ui-icon {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.bookify-booking__calendar table {
+	width: 100%;
+	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+.bookify-booking__calendar th,
+.bookify-booking__calendar td {
+	padding: 0;
+	text-align: center;
+}
+
+.bookify-booking__calendar th span {
+	color: var(--bookify-body);
+	font-size: 0.75rem;
+	font-weight: 600;
+}
+
+.bookify-booking__calendar td a,
+.bookify-booking__calendar td span {
+	display: block;
+	padding: 0.35rem 0;
+	border-radius: var(--bookify-radius-sm);
+	color: var(--bookify-ink);
+	text-decoration: none;
+}
+
+.bookify-booking__calendar td a:hover {
+	background: var(--bookify-tint);
+}
+
+/* The day states jQuery UI already marks, in the form's own language. */
+.bookify-booking__calendar td a.ui-state-active {
+	background: var(--bookify-accent);
+	color: var(--bookify-on-accent);
+	font-weight: 600;
+}
+
+.bookify-booking__calendar td.ui-datepicker-today a {
+	box-shadow: inset 0 0 0 1px var(--bookify-accent);
+	font-weight: 600;
+}
+
+/* A day the server has no times for. jQuery UI marks it unselectable and binds it no
+   handler, so there is nothing here to make inert - only something to make obvious. */
+.bookify-booking__calendar td.ui-datepicker-unselectable a,
+.bookify-booking__calendar td.ui-datepicker-unselectable span {
+	color: color-mix(in srgb, var(--bookify-body) 45%, transparent);
+	text-decoration: line-through;
+	text-decoration-thickness: 1px;
+}
+
+.bookify-booking__calendar td.ui-datepicker-other-month a,
+.bookify-booking__calendar td.ui-datepicker-other-month span {
+	color: color-mix(in srgb, var(--bookify-body) 40%, transparent);
+}
+
+.bookify-booking__calendar td a:focus-visible,
+.bookify-booking__calendar .ui-datepicker-prev:focus-visible,
+.bookify-booking__calendar .ui-datepicker-next:focus-visible {
+	outline: 3px solid var(--bookify-accent);
+	outline-offset: 2px;
+}
+
+/*
+ * A day that cannot be clicked: shut, blocked, inside the lead time, or already full. jQuery UI
+ * puts ui-datepicker-unselectable and ui-state-disabled on the *cell* and renders a span where it
+ * would otherwise have rendered a link — which is also what makes the day genuinely unclickable
+ * rather than merely styled to look it.
+ */
+.bookify-booking__calendar td.ui-datepicker-unselectable .ui-state-default {
+	color: var(--bookify-body);
+	background: transparent;
+	cursor: default;
+	opacity: 0.55;
+}
+
+.bookify-booking__calendar td .ui-state-active {
+	background: var(--bookify-ink);
+	color: #fff;
+	font-weight: 700;
+}
+
+/* The days either side of the month on show are not part of this choice. */
+.bookify-booking__calendar td.ui-datepicker-other-month .ui-state-default {
+	opacity: 0.25;
+}
+
+.bookify-booking__calendar td.ui-datepicker-today .ui-state-default {
+	box-shadow: inset 0 0 0 1px var(--bookify-line);
+}
+
+/* Turnstile renders its own widget, when the owner has configured it (T19). */
+.bookify-booking__turnstile {
+	grid-column: 1 / -1;
+	margin: 0;
+}

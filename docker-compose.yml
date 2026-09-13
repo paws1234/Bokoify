@@ -1,0 +1,118 @@
+# Copied verbatim into every project as docker-compose.yml. Everything project-specific
+# comes from the .env file beside it, which is why this file is identical everywhere.
+#
+# The .tmpl suffix is deliberate: VS Code's containers extension offers "Compose Up" for any
+# file named docker-compose.yml, and this one can never run on its own.
+#
+# THIS IS A TEMPLATE, NOT A STACK. There is no .env beside it here, so running it from
+# the kit leaves every ${...} below empty and compose aborts with
+# "invalid spec: :/var/www/html/wp-content/plugins/wp-agent-bridge". Start a project
+# instead, and let wpdev use the project's own copy:
+#
+#     wpdev up <project-dir>          # or: cd <project-dir> && wpdev up
+#
+# Compose reads .env from THIS file's directory, not the shell's, so a project's copy
+# works from any working directory.
+
+name: ${PROJECT_NAME:?template file with no .env - use "wpdev up <dir>"}
+
+x-wordpress-env: &wordpress-env
+    WORDPRESS_DB_HOST: db:3306
+    WORDPRESS_DB_USER: wordpress
+    WORDPRESS_DB_PASSWORD: wordpress
+    WORDPRESS_DB_NAME: wordpress
+    WORDPRESS_DEBUG: "1"
+    # Email, for the booking confirmations. Empty by default, so a project that does not use
+    # Resend still starts: the plugin sends the WordPress way until a key is here. Fill these in
+    # the project's .env — see docs/SETUP.md — and they reach PHP, WordPress and WP-CLI alike.
+    RESEND_API_KEY: ${RESEND_API_KEY:-}
+    BOOKIFY_MAIL_FROM: ${BOOKIFY_MAIL_FROM:-}
+    BOOKIFY_MAIL_FROM_NAME: ${BOOKIFY_MAIL_FROM_NAME:-}
+    # Testing only: sends every message to this one inbox instead of to the address on the
+    # booking, which is what makes the path observable on a site with no verified domain.
+    # Empty means off, and off is what a live site wants.
+    BOOKIFY_MAIL_REDIRECT_TO: ${BOOKIFY_MAIL_REDIRECT_TO:-}
+    # The Supabase mirror. Empty by default, which leaves it switched off: with no URL and no key
+    # nothing is published and the site behaves exactly as it did before the mirror existed.
+    # These are listed here and not read from .env automatically — compose interpolates .env into
+    # the service spec, and each service's environment: is what PHP's getenv() can actually see.
+    # Setting them in .env and not here is the trap that made every Resend send look misconfigured.
+    # BOOKIFY_SUPABASE_KEY is a service_role credential — it bypasses row level security, so it is
+    # a full-database key and belongs in .env and nowhere else.
+    BOOKIFY_SUPABASE_URL: ${BOOKIFY_SUPABASE_URL:-}
+    BOOKIFY_SUPABASE_KEY: ${BOOKIFY_SUPABASE_KEY:-}
+    # The direct-to-Postgres alternative, which takes precedence over the pair above when a URL is set.
+    # Declared here for the same reason as the rest: a value in .env that is not listed here never
+    # reaches getenv(), so setting it would look like it had been ignored rather than never passed.
+    # BOOKIFY_SUPABASE_DB_PASSWORD is the project's database password — the superuser credential — so
+    # it belongs in .env and nowhere else either.
+    BOOKIFY_SUPABASE_DB_URL: ${BOOKIFY_SUPABASE_DB_URL:-}
+    BOOKIFY_SUPABASE_DB_PASSWORD: ${BOOKIFY_SUPABASE_DB_PASSWORD:-}
+    BOOKIFY_SUPABASE_DB_SSLMODE: ${BOOKIFY_SUPABASE_DB_SSLMODE:-}
+    # Applies to every request, including WP-CLI, so both containers share it.
+    # Application passwords require SSL unless the environment reports itself as
+    # local, which is why WP_ENVIRONMENT_TYPE is set here.
+    WORDPRESS_CONFIG_EXTRA: |
+        define( 'WP_ENVIRONMENT_TYPE', 'local' );
+        define( 'WP_DEBUG_LOG', true );
+        define( 'WP_DEBUG_DISPLAY', false );
+        define( 'SCRIPT_DEBUG', true );
+        define( 'FS_METHOD', 'direct' );
+        define( 'WP_MEMORY_LIMIT', '512M' );
+
+x-wordpress-volumes: &wordpress-volumes
+    # Core files live in a named volume that the image populates on first run.
+    - wp_data:/var/www/html
+    # The shared plugin is mounted from the kit: one copy, every project.
+    - ${WP_AGENT_PLUGIN_DIR:?template file with no .env - use "wpdev up <dir>"}:/var/www/html/wp-content/plugins/wp-agent-bridge
+    # Project code and uploads, so the agent can read and write them directly.
+    - ./wp-content/themes/${PROJECT_THEME}:/var/www/html/wp-content/themes/${PROJECT_THEME}
+    - ./wp-content/uploads:/var/www/html/wp-content/uploads
+    - ./wp-content/plugins/bookify-booking:/var/www/html/wp-content/plugins/bookify-booking
+    # wpdev:extra-mounts
+
+services:
+    db:
+        image: mariadb:11
+        restart: unless-stopped
+        environment:
+            MARIADB_DATABASE: wordpress
+            MARIADB_USER: wordpress
+            MARIADB_PASSWORD: wordpress
+            MARIADB_ROOT_PASSWORD: root
+        volumes:
+            - db_data:/var/lib/mysql
+        healthcheck:
+            test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+            interval: 5s
+            timeout: 5s
+            retries: 30
+
+    wordpress:
+        image: ${WPDEV_IMAGE}
+        restart: unless-stopped
+        depends_on:
+            db:
+                condition: service_healthy
+        ports:
+            - "${WP_PORT}:80"
+        environment: *wordpress-env
+        volumes: *wordpress-volumes
+
+    # Started only on demand by wpdev, never by `docker compose up`.
+    cli:
+        image: ${WPDEV_IMAGE}
+        depends_on:
+            db:
+                condition: service_healthy
+        # www-data is mapped to your host uid in the image, so files this writes
+        # into a mounted directory belong to you on the host.
+        user: www-data
+        working_dir: /var/www/html
+        entrypoint: [ "wp" ]
+        environment: *wordpress-env
+        volumes: *wordpress-volumes
+
+volumes:
+    db_data:
+    wp_data:
