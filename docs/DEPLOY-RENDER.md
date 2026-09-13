@@ -151,6 +151,44 @@ Nothing the script does prints a value. The response from `services create` echo
 variables back — values included — so the script captures it, prints six identifying fields, and filters
 Render's own error text through the list of secrets it sent.
 
+### The free plan's own database
+
+Render has never offered managed MySQL, and no Free instance type exists for private services — Free
+covers web services, Postgres, Key Value and static sites only. So a free deploy has to bring a database
+with it, and `BOOKIFY_LOCAL_DB=1` makes the instance that database: MariaDB starts beside Apache in the
+same 512 MB, and WordPress is pointed at it over the loopback address.
+
+It is a cache of Supabase, not a record:
+
+| | |
+| --- | --- |
+| Survives | nothing — the filesystem is wiped on every deploy, restart and spin-down |
+| Cold start | **measured 51–60 s** at the free plan's 0.1 CPU, most of it the restore |
+| Memory | **measured 213–235 MiB of 512 MiB**, MariaDB included, with the buffers tuned in the Dockerfile |
+| Content | rebuilt from `bookify_content` on every boot — 713 rows, 0 failures |
+
+A booking is lost only if it is written and the instance dies before the mirror's push at shutdown. That
+is the trade: free and self-contained, against a record that lives somewhere else. Render also warns that
+it may suspend a free service talking to an external database at high volume, which this arrangement
+sidesteps — the database is not external.
+
+**Two things had to be fixed before any image appeared, and neither was obvious:**
+
+1. **The site's address is stored in far more places than `WP_HOME` overrides.** After a restore the page
+   emitted **98 URLs to `http://localhost:8890` and none to the deployment** — Elementor keeps absolute
+   URLs inside `_elementor_data`, so every photograph would have been requested from the visitor's own
+   machine. `wp search-replace` fixes it, but a **second pass is needed with the slashes escaped as
+   `\/`**: that is how JSON stores them, and the first pass cannot match a string it cannot see. Measured
+   either side of the fix — 101 replacements then 9, and 104 canonical URLs against 0.
+2. **`wp-content/uploads` arrives owned by `root` while PHP runs as `www-data`.** `is_writable()` then
+   reports `true` to the `wp` command, which runs as root, and `false` to every web request — so the
+   on-demand image serving answered 404 while writing nothing at all. Ownership has to be corrected
+   **twice**: once after the web root is copied, and again after the boot-time `wp` commands, because
+   `wp_upload_dir()` creates the year and month directories as root whichever user owns their parent.
+
+With both fixed, on a container limited to the free plan's own 0.1 CPU and 512 MB: **24 of 24 upload URLs
+on the front page return 200**, each fetched from Supabase on demand into an initially empty uploads
+directory, and the fetched bytes are identical to the file written.
 
 ---
 

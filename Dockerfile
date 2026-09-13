@@ -14,7 +14,7 @@ FROM wordpress:php8.3-apache
 # released PHAR rather than `latest`, so a redeploy cannot silently change the tool doing the work.
 ARG WP_CLI_VERSION=2.11.0
 
-# Three things, for three different reasons:
+# Four things, for four different reasons:
 #
 #   * `unzip`, for the plugin below;
 #   * `default-mysql-client`, because `wp db import` shells out to the `mysql` binary, and without one in
@@ -24,11 +24,40 @@ ARG WP_CLI_VERSION=2.11.0
 #     API (`includes/supabase/postgres.php`). The base image ships `mysqli` and `mysqlnd` and *no*
 #     Postgres driver at all, so without this the direct path cannot even open a connection — it fails
 #     with "could not find driver", which reads like a credentials problem and is not one.
+#   * `mariadb-server`, which is the whole database on the free plan. Render has never offered managed
+#     MySQL, no Free instance type exists for private services, and Render warns it may suspend a free
+#     web service that talks to an external database at high volume — so on free, MariaDB runs here,
+#     beside Apache, in the same 512 MB. It is started only when BOOKIFY_LOCAL_DB=1; with that unset
+#     this package sits unused and the WORDPRESS_DB_* variables point wherever they are told to.
+#
+# `policy-rc.d` refuses service starts during the build: Debian's `mariadb-server` postinst would
+# otherwise try to start a daemon in a container that has no init, and fail the layer.
 RUN set -eux; \
+    printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d; \
+    chmod +x /usr/sbin/policy-rc.d; \
 	apt-get update; \
-	apt-get install -y --no-install-recommends default-mysql-client unzip libpq-dev; \
+    apt-get install -y --no-install-recommends default-mysql-client unzip libpq-dev mariadb-server; \
 	docker-php-ext-install pdo_pgsql; \
 	rm -rf /var/lib/apt/lists/*
+
+# MariaDB's defaults assume a server with memory to spare. The free instance has 0.1 CPU and 512 MB for
+# MariaDB, Apache and PHP together, and the stock buffer pool alone is larger than that. Every value here
+# is sized for a small site with one user, and the file is numbered so it loads after the distribution's
+# own settings rather than being overwritten by them.
+RUN set -eux; \
+    mkdir -p /etc/mysql/mariadb.conf.d; \
+    printf '%s\n' \
+    '[mysqld]' \
+    'innodb_buffer_pool_size = 48M' \
+    'innodb_log_file_size = 16M' \
+    'key_buffer_size = 8M' \
+    'performance_schema = OFF' \
+    'max_connections = 20' \
+    'skip-name-resolve = 1' \
+    'character-set-server = utf8mb4' \
+    'collation-server = utf8mb4_unicode_520_ci' \
+    > /etc/mysql/mariadb.conf.d/99-bookify-free.cnf; \
+    cat /etc/mysql/mariadb.conf.d/99-bookify-free.cnf
 
 RUN set -eux; \
 	curl -fsSL -o /usr/local/bin/wp \

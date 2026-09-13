@@ -112,16 +112,21 @@ map_from_env() {
 }
 map_from_env
 
-# Required, and deliberately impossible to guess: a free instance has no MySQL of its
-# own, so this is somebody else's server and only its owner knows the values.
+# The database. Either an external MySQL — Render has none of its own, so that is somebody else's server
+# and only its owner knows the address — or, with BOOKIFY_LOCAL_DB=1, MariaDB running beside Apache
+# inside the instance, which needs no values from anyone.
+local_db="${BOOKIFY_LOCAL_DB:-0}"
+
 missing=()
-for v in WORDPRESS_DB_HOST WORDPRESS_DB_USER WORDPRESS_DB_PASSWORD; do
-	[ -n "${!v:-}" ] || missing+=( "$v" )
-done
+if [ "$local_db" != '1' ]; then
+	for v in WORDPRESS_DB_HOST WORDPRESS_DB_USER WORDPRESS_DB_PASSWORD; do
+		[ -n "${!v:-}" ] || missing+=( "$v" )
+	done
+fi
 
 if [ "${#missing[@]}" -gt 0 ] && [ "$dry_run" -eq 0 ]; then
-	note "error: no database. A free Render instance has no MySQL of its own, so"
-	note "       WordPress's database lives elsewhere and these must be supplied:"
+	note "error: no database. Render has no managed MySQL, and a free instance has no"
+	note "       private service either, so WordPress's database has to come from":
 	note ""
 	for v in "${missing[@]}"; do note "         $v"; done
 	note ""
@@ -129,6 +134,10 @@ if [ "${#missing[@]}" -gt 0 ] && [ "$dry_run" -eq 0 ]; then
 	note "         WORDPRESS_DB_HOST=mysql.example.com:3306"
 	note "         WORDPRESS_DB_USER=bookify"
 	note "         WORDPRESS_DB_PASSWORD=..."
+	note ""
+	note "       Or set BOOKIFY_LOCAL_DB=1 to have the instance run MariaDB itself: free"
+	note "       and self-contained, but the filesystem is wiped on every spin-down and"
+	note "       the site is rebuilt from Supabase on each cold start."
 	exit 1
 fi
 
@@ -173,10 +182,23 @@ add() { # key value
 	describe "$1" "$2"
 }
 
-add WORDPRESS_DB_HOST "$(printf '%s' "${WORDPRESS_DB_HOST:-}")"
-add WORDPRESS_DB_NAME wordpress
-add WORDPRESS_DB_USER "$(printf '%s' "${WORDPRESS_DB_USER:-}")"
-add WORDPRESS_DB_PASSWORD "$(printf '%s' "${WORDPRESS_DB_PASSWORD:-}")"
+if [ "$local_db" = '1' ]; then
+	add BOOKIFY_LOCAL_DB 1
+	add WORDPRESS_DB_HOST 127.0.0.1:3306
+	add WORDPRESS_DB_NAME wordpress
+	add WORDPRESS_DB_USER "${WORDPRESS_DB_USER:-wordpress}"
+	# Generated once, here, rather than at boot: `wp-config.php` reads these from the environment, so a
+	# value minted inside the container would not reach a process started later by `render ssh` or
+	# `docker exec`, and the `wp` command would answer "Error establishing a database connection" while
+	# the site itself worked. Measured exactly that before the values were passed in here. Loopback-only
+	# and single-tenant, so they guard nothing — they just have to be the same everywhere.
+	add WORDPRESS_DB_PASSWORD "${WORDPRESS_DB_PASSWORD:-$(head -c 24 /dev/urandom | base64 | tr -d '/+=' | cut -c1-20)}"
+else
+	add WORDPRESS_DB_HOST "$(printf '%s' "${WORDPRESS_DB_HOST:-}")"
+	add WORDPRESS_DB_NAME wordpress
+	add WORDPRESS_DB_USER "$(printf '%s' "${WORDPRESS_DB_USER:-}")"
+	add WORDPRESS_DB_PASSWORD "$(printf '%s' "${WORDPRESS_DB_PASSWORD:-}")"
+fi
 add WORDPRESS_CONFIG_EXTRA "$config_extra"
 add WORDPRESS_SITE_TITLE "${WORDPRESS_SITE_TITLE:-}"
 add BOOKIFY_ADMIN_USER "${BOOKIFY_ADMIN_USER:-}"
