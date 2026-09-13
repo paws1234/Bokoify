@@ -110,17 +110,47 @@ not be pasted into a chat either. For CI the CLI reads `RENDER_API_KEY` from the
 Afterwards: `render services` lists what is deployed, `render deploys create <service> --wait`
 triggers a deploy and blocks on it, and `render ssh <service>` opens a shell (paid plans only).
 
-**The CLI cannot set environment variables.** The whole command set was checked (v2.28.0): `services
-update` takes a plan, a branch, commands and a health check, and nothing else — `--environment-ids` is
-a *filter*, not a way to set anything. So injecting a secret from the terminal is a Dashboard job, or a
-Blueprint one:
+**Creating a service from the terminal can set environment variables; changing one afterwards cannot.**
+Both halves were checked against v2.28.0, and the note that used to stand here — that the CLI could not
+set them at all — was wrong:
 
-- **A new deploy:** declare the variable in the Blueprint with `sync: false` and Render prompts for it
-  during the Blueprint's creation. That is what the Supabase variables do.
-- **An existing service:** the Dashboard's Environment tab. Render **ignores `sync: false` entries when
-  updating an existing Blueprint**, so re-syncing will not add a new one.
-- **CI:** `RENDER_API_KEY` authenticates the CLI, but there is still no env-var subcommand to use it
-  with. The Render REST API has one.
+- `services create` takes `--env-var KEY=VALUE`, repeatable, beside `--repo`, `--branch`,
+  `--runtime docker` and `--plan free`. A whole service, secrets included, can therefore be created from
+  a shell without opening the Dashboard at all. `deploy/render/create-service.sh` does exactly that,
+  reading the values out of `.env` so none is ever typed into a shell or printed.
+- `services update` has **no** `--env-var` — a plan, a branch, commands, a health check, a repo, and
+  nothing else. Changing a variable on a service that already exists is still a Dashboard job, or a REST
+  API one.
+- **A Blueprint-created service:** declare the variable with `sync: false` and Render prompts for it
+  during the Blueprint's *creation*. Render **ignores `sync: false` entries when updating an existing
+  Blueprint**, so re-syncing will not add a new one.
+- **CI:** `RENDER_API_KEY` authenticates the CLI, and the REST API has an env-var endpoint.
+
+Because the variables are injected at creation, the external MySQL the free plan needs has to be decided
+*before* the first `services create` — the script refuses to run without it rather than creating a
+service whose only answer is 500.
+
+### Creating the service from the terminal
+
+```sh
+render login                        # opens the browser; the token lands in ~/.render/cli.yaml
+render workspace set                # pick the workspace
+
+printf 'WORDPRESS_DB_HOST=…\nWORDPRESS_DB_USER=…\nWORDPRESS_DB_PASSWORD=…\n' > deploy/render/.env.render
+
+deploy/render/create-service.sh --dry-run   # the plan, every value masked
+deploy/render/create-service.sh             # create it, print the ids back
+```
+
+**Two things the CLI cannot do for you.** `render login` needs an authenticated client, so it is yours
+to run — and no token belongs in a chat. And **Render's GitHub App must have access to the repository**:
+Git-backed services connect through the App, and a public repository does not remove that requirement.
+Creating the service once in the Dashboard is the shortest way to install it.
+
+Nothing the script does prints a value. The response from `services create` echoes the environment
+variables back — values included — so the script captures it, prints six identifying fields, and filters
+Render's own error text through the list of secrets it sent.
+
 
 ---
 

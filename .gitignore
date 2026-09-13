@@ -1,5 +1,11 @@
 # Secrets and machine-specific config; never committed.
 .env
+
+# The Render deploy's database credentials, kept beside the deploy script rather than in
+# `.env`: the local site's database is the kit's container, and a live one is somebody
+# else's server, so the two cannot share a file without one overwriting the other.
+deploy/render/.env.render
+
 .mcp.json
 
 # The editor's MCP servers keep their credentials in these two, and neither was matched by the
