@@ -80,6 +80,34 @@ add_action(
 );
 
 /**
+ * Print the tab icon from two files that ship with the theme.
+ *
+ * WordPress's own Site Icon setting is the other way to do this and the wrong one here: it stores an
+ * attachment and an option, so the icon lives in the database and has to be carried across to a host
+ * that starts with an empty one. Two small files beside the stylesheet travel with the code, so the
+ * tab is branded on any host the moment this theme is.
+ *
+ * Both are square and opaque on purpose. A transparent corner is composited onto black by iOS for a
+ * touch icon, and the source artwork's rounded corners would leave four of them.
+ */
+add_action(
+	'wp_head',
+	static function () {
+		$assets = get_stylesheet_directory_uri() . '/assets';
+
+		printf(
+			'<link rel="icon" type="image/png" sizes="32x32" href="%s">' . "\n",
+			esc_url( $assets . '/icon-32.png' )
+		);
+
+		printf(
+			'<link rel="apple-touch-icon" href="%s">' . "\n",
+			esc_url( $assets . '/icon-180.png' )
+		);
+	}
+);
+
+/**
  * Empty Hello Elementor's copyright setting, which stops it rendering that block at all.
  *
  * The parent prints it inside <footer>, and <footer> closes before wp_footer runs - so the
